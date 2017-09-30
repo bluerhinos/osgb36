@@ -1,0 +1,21 @@
+{
+    "name": "bluerhinos/osgb36",
+    "description": "Simple osgb36 conversion toolkit",
+    "license": "MIT",
+    "type": "library",
+    "authors": [
+        {
+            "name": "Andrew Milsted",
+            "email": "andrew@bluerhinos.co.uk"
+        }
+    ],
+    "minimum-stability": "dev",
+    "require": {
+        "php": ">=5.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "BlueRhinos\\": "./"
+        }
+    }
+}
