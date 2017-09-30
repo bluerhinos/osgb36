@@ -82,6 +82,58 @@ class osgb36 {
         )
     );
 
+    private $gb = array(
+        array(67919, 0),
+        array(199488, 0),
+        array(307502, 30473),
+        array(414691, 60832),
+        array(540032, 75685),
+        array(632034, 98379),
+        array(664677, 151949),
+        array(677568, 258087),
+        array(658620, 359199),
+        array(586103, 393753),
+        array(473094, 591204),
+        array(389931, 717210),
+        array(435056, 799984),
+        array(427111, 906851),
+        array(348400, 904402),
+        array(490128, 1133972),
+        array(516120, 1234632),
+        array(455840, 1264920),
+        array(135463, 1115119),
+        array(0, 983469),
+        array(0, 725288),
+        array(71476, 667325),
+        array(139734, 619270),
+        array(163110, 581867),
+        array(205709, 519035),
+        array(237191, 516155),
+        array(276613, 529647),
+        array(293901, 464542),
+        array(310046, 394559),
+        array(230583, 406901),
+        array(208024, 363916),
+        array(202386, 310331),
+        array(155062, 248502),
+        array(130167, 215750),
+        array(173779, 182643),
+        array(206111, 147420),
+        array(106242, 42291),
+        array(61292, 20190),
+        array(67919, 0),
+    );
+
+    protected $osmaps = array(
+        'explorer' => 'https://api.ordnancesurvey.co.uk/osl/v1/mapsheet/explorer?bbox=0,0,700000,1300000,27700&tsrs=27700',
+        'landranger' => 'https://api.ordnancesurvey.co.uk/osl/v1/mapsheet/landranger?bbox=0,0,700000,1300000,27700&tsrs=27700',
+        'historic1896' => 'https://www.ordnancesurvey.co.uk/shop/clickable-map/assets/historic1896.json'
+    );
+
+    public $cache = '/tmp/osmaps';
+
+    public $cache_time = 2592000; //30days
+
     public function toGrid() {
 
         $lat = deg2rad($this->os_lat);
@@ -366,6 +418,154 @@ class osgb36 {
         $pos->convertOSGB36toWGS84();
 
         return $pos;
+    }
+
+    public static function formatDMS($dec, $format,$which, $digits = 0){
+
+        $dir['lat']['+'] = "N";
+        $dir['lat']['-'] = "S";
+        $dir['long']['-'] = "W";
+        $dir['long']['+'] = "E";
+
+        switch($format){
+            case "D":
+                $ret = $dec;
+                break;
+            case "DMS":
+                $de = abs($dec);
+                $deg = floor($de);
+                $de = 60 * ($de-$deg);
+                $min = floor($de);
+                $de = 60 * ($de-$min);
+                $sec = round($de);
+
+                $sign = $dec > 0 ? "+" : "-";
+                $ret = sprintf("%03d".chr(176)."%02d'%02d\" ".$dir[$which][$sign], $deg,$min,$sec);
+
+                break;
+            case "DM":
+                $de = abs($dec);
+                $deg = floor($de);
+                $de = 60 * ($de-$deg);
+                $min = round($de,$digits);
+
+                $sign = $dec > 0 ? "+" : "-";
+                $ret = $deg.chr(176).$min."'".$dir[$which][$sign];
+
+                break;
+        }
+
+        return $ret;
+    }
+
+    public function asDMS($format, $digits = 0, $join = ', ') {
+        return self::formatDMS($this->lat, $format, 'lat', $digits).$join.self::formatDMS($this->lon, $format, 'long', $digits);
+    }
+
+    public function isInGB() {
+        if($this->east < 0 || $this->east > 700000 || $this->north < 0 || $this->north > 1300000) {
+            return false;
+        }
+        return $this->_pointInPolygon($this->east, $this->north, $this->gb) === 'inside';
+    }
+
+    public function hasAMap($map_type) {
+
+        $url = $this->osmaps[$map_type];
+        $cache_file = $this->cache.'/'.$map_type.'.json';
+        if (file_exists($cache_file) === false || filemtime($cache_file) < (time() - $this->cache_time)) {
+            if (file_exists($this->cache) === false) {
+                mkdir($this->cache, 0777, true);
+            }
+            copy($url, $cache_file);
+        }
+
+        $data = json_decode(file_get_contents($cache_file), true);
+        $distance_from_center = 999999999;
+        $found = false;
+        foreach ($data['features'] as $feature) {
+            foreach($feature['geometry']['coordinates'] as $polygon) {
+                if ($this->_pointInPolygon($this->east, $this->north, $polygon) !== 'outside') {
+                    $bbox = $feature['geometry']['bbox'];
+                    $center = array(
+                        ($bbox[3] + $bbox[0]) / 2,
+                        ($bbox[4] + $bbox[1]) / 2,
+                    );
+                    $distance = round(
+                        sqrt(
+                        pow($center[0] - $this->east,2) + pow($center[1] - $this->north,2)
+                        )
+                    );
+                    if ($distance_from_center > $distance) {
+                        $found = $feature['properties'];
+                        $distance_from_center = $distance;
+                    }
+                }
+            }
+
+        }
+
+        if ($found !== false) {
+           return array(
+               'url' => $found['url'],
+               'sheet' => $found['SHEET'],
+               'title' => $found['TITLE'],
+               'sub_title' => $found['SUB_TITLE'],
+               'number' => $found['NUMBER'],
+               'pic' => ($map_type === 'historic') ? 'https://www.ordnancesurvey.co.uk/shop/clickable-map//assets/historic1896-front-cover/historic1896.jpg' : sprintf('https://www.ordnancesurvey.co.uk/shop/clickable-map//assets/%s-front-cover/%03d.jpg', $map_type, $found['NUMBER'])
+           );
+        }
+
+    }
+
+    protected $_pointOnVertex = true; // Check if the point sits exactly on one of the vertices?
+
+    function _pointInPolygon($east, $north, $polygon, $pointOnVertex = true) {
+
+        $point = array(0 => $east, 1 => $north);
+
+        $this->_pointOnVertex = $pointOnVertex;
+
+        // Check if the point sits exactly on a vertex
+        if ($this->_pointOnVertex == true and $this->_pointOnVertex($point, $polygon) == true) {
+            return "vertex";
+        }
+
+        // Check if the point is inside the polygon or on the boundary
+        $intersections = 0;
+        $vertices_count = count($polygon);
+
+        for ($i=1; $i < $vertices_count; $i++) {
+            $vertex1 = $polygon[$i-1];
+            $vertex2 = $polygon[$i];
+            if ($vertex1[1] == $vertex2[1] and $vertex1[1] == $point[1] and $point[0] > min($vertex1[0], $vertex2[0]) and $point[0] < max($vertex1[0], $vertex2[0])) { // Check if point is on an horizontal polygon boundary
+                return "boundary";
+            }
+            if ($point[1] > min($vertex1[1], $vertex2[1]) and $point[1] <= max($vertex1[1], $vertex2[1]) and $point[0] <= max($vertex1[0], $vertex2[0]) and $vertex1[1] != $vertex2[1]) {
+                $xinters = ($point[1] - $vertex1[1]) * ($vertex2[0] - $vertex1[0]) / ($vertex2[1] - $vertex1[1]) + $vertex1[0];
+                if ($xinters == $point[0]) { // Check if point is on the polygon boundary (other than horizontal)
+                    return "boundary";
+                }
+                if ($vertex1[0] == $vertex2[0] || $point[0] <= $xinters) {
+                    $intersections++;
+                }
+            }
+        }
+        // If the number of edges we passed through is odd, then it's in the polygon.
+        if ($intersections % 2 != 0) {
+            return "inside";
+        } else {
+            return "outside";
+        }
+    }
+
+    function _pointOnVertex($point, $vertices) {
+        foreach($vertices as $vertex) {
+            if ($point == $vertex) {
+                return true;
+            }
+        }
+        return false;
     }
 
 
