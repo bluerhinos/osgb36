@@ -6,6 +6,9 @@ namespace BlueRhinos;
  	osgb36
 	Simple osgb36 conversion toolkit
 
+    Attributions
+        The conversion functions are based on the work of http://www.movable-type.co.uk
+        The point in polygon function is from http://assemblysys.com/php-point-in-polygon-algorithm/
 */
 
 /*
@@ -37,17 +40,59 @@ namespace BlueRhinos;
 /* osgb36 */
 class osgb36 {
 
+    /**
+     * The current latitude (WGS84)
+     * @var float
+     */
     public $lat;
+
+    /**
+     * The current longitude (WGS84)
+     * @var float
+     */
     public $lon;
+
+    /**
+     * The current altitude (WGS84)
+     * @var float
+     */
     public $height;
+
+    /**
+     * The current latitude (OSGB36)
+     * @var float
+     */
     public $os_lat;
+
+    /**
+     * The current longitude (OSGB36)
+     * @var float
+     */
     public $os_lon;
+
+    /**
+     * The current altitude (OSGB36)
+     * @var float
+     */
     public $os_height;
+
+    /**
+     * The northings position (OSGB36)
+     * @var float
+     */
     public $north;
+
+    /**
+     * The eastings position (OSGB36)
+     * @var float
+     */
     public $east;
 
-    // ellipse parameters
-    private $e = array(
+    /**
+     * ellipse parameters
+     * @var array
+     */
+    protected $e = array(
         'WGS84' => array(
             'a'=>6378137,
             'b'=> 6356752.3142,
@@ -60,7 +105,10 @@ class osgb36 {
         )
     );
 
-    // helmert transform parameters
+    /**
+     * helmert transform parameters
+     * @var array
+     */
     private $h = array(
         'WGS84toOSGB36'=> array(
             'tx' => -446.448,
@@ -82,6 +130,10 @@ class osgb36 {
         )
     );
 
+    /**
+     * GB polygon that encircles the coverage of OS
+     * @var array
+     */
     private $gb = array(
         array(67919, 0),
         array(199488, 0),
@@ -124,16 +176,32 @@ class osgb36 {
         array(67919, 0),
     );
 
+    /**
+     * Urls to the json that describe the available maps.
+     * @var array
+     */
     protected $osmaps = array(
         'explorer' => 'https://api.ordnancesurvey.co.uk/osl/v1/mapsheet/explorer?bbox=0,0,700000,1300000,27700&tsrs=27700',
         'landranger' => 'https://api.ordnancesurvey.co.uk/osl/v1/mapsheet/landranger?bbox=0,0,700000,1300000,27700&tsrs=27700',
         'historic1896' => 'https://www.ordnancesurvey.co.uk/shop/clickable-map/assets/historic1896.json'
     );
 
+    /**
+     * Location of remote files that should be cached (eg the os maps json)
+     * @var string
+     */
     public $cache = '/tmp/osmaps';
 
-    public $cache_time = 2592000; //30days
+    /**
+     * Number of seconds that the cached items should be kept for
+     * 2592000 = 30days
+     * @var int
+     */
+    public $cache_time = 2592000;
 
+    /**
+     * Will convert the current OSGB36 lat/long into easting/northings in m
+     */
     public function toGrid() {
 
         $lat = deg2rad($this->os_lat);
@@ -178,25 +246,39 @@ class osgb36 {
 
     }
 
-    function convertOSGB36toWGS84() {
+    /**
+     * Converts the current OSGB36 position into WGS84
+     */
+    protected function _convertOSGB36toWGS84() {
         $p1 = array("lat"=>$this->os_lat,"lon"=>$this->os_lon,"height"=>$this->os_height);
-        $p2 = $this->convert($p1, $this->e['Airy1830'], $this->h['OSGB36toWGS84'], $this->e['WGS84']);
+        $p2 = $this->_convert($p1, $this->e['Airy1830'], $this->h['OSGB36toWGS84'], $this->e['WGS84']);
         $this->lat = $p2['lat'];
         $this->lon = $p2['lon'];
         $this->height = $p2['height'];
     }
 
-
-    function convertWGS84toOSGB36() {
+    /**
+     * Converts the current WGS84 position into OSGB36
+     */
+    protected function _convertWGS84toOSGB36() {
         $p1 = array("lat"=>$this->lat,"lon"=>$this->lon,"height"=>(float)$this->height);
-        $p2 = $this->convert($p1, $this->e['WGS84'], $this->h['WGS84toOSGB36'], $this->e['Airy1830']);
+        $p2 = $this->_convert($p1, $this->e['WGS84'], $this->h['WGS84toOSGB36'], $this->e['Airy1830']);
         $this->os_lat = $p2['lat'];
         $this->os_lon = $p2['lon'];
         $this->os_height = $p2['height'];
     }
 
-
-    function convert($p, $e1, $t, $e2) {
+    /**
+     * converts lat/long from one ellipse to another
+     *
+     * @param array $p   source position as lat, lon, height
+     * @param array $e1  source ellipse parameter
+     * @param array $t   helmert transform parameters
+     * @param array $e2  destination ellipse parameter
+     *
+     * @return array as lat, lon, height
+     */
+    protected function _convert($p, $e1, $t, $e2) {
         // -- convert polar to cartesian coordinates (using ellipse 1)
 
         $p1['lat'] = deg2rad($p['lat']);
@@ -248,15 +330,12 @@ class osgb36 {
         return array("lat"=> rad2deg($phi) , "lon"=> rad2deg($lambda), "height"=> $H);
     }
 
-
-    /*
+    /**
      * convert standard grid reference ('SU387148') to fully numeric ref ([438700,114800])
-     *   returned co-ordinates are in metres, centred on grid square for conversion to lat/long
      *
-     *   note that northern-most grid squares will give 7-digit northings
-     *   no error-checking is done on gridref (bad input will give bad results or NaN)
+     * @param string $gridref
      */
-    function posFromGrid($gridref) {
+    protected function _posFromGrid($gridref) {
         // get numeric values of letter references, mapping A->0, B->1, C->2, etc:
         $l1 = ord(strtoupper($gridref{0})) - ord('A');
         $l2 = ord(strtoupper($gridref{1})) - ord('A');
@@ -295,10 +374,10 @@ class osgb36 {
         $this->east = $e;
     }
 
-    /*
+    /**
      * convert OS grid reference to geodesic co-ordinates
      */
-    function toLatLong() {
+    protected function _toLatLong() {
         $E = $this->east; $N = $this->north;
 
         $a = 6377563.396; $b = 6356256.910;              // Airy 1830 major & minor semi-axes
@@ -346,10 +425,15 @@ class osgb36 {
 
     }
 
-    /*
-     * convert numeric grid reference (in metres) to standard-form grid ref
+    /**
+     * Convert numeric grid reference (in metres) to standard-form grid ref
+     *
+     * @param int  $digits number of digits
+     * @param bool $spaces should the gridreference have spaces.
+     *
+     * @return bool|string grid reference (false on possition outside grid references)
      */
-    function asGridRef($digits, $spaces = true) {
+    public function asGridRef($digits, $spaces = true) {
 
         $e = $this->east;
         $n = $this->north;
@@ -383,6 +467,15 @@ class osgb36 {
         return $gridRef;
     }
 
+
+    /**
+     * Creates a osgb36 object from a WGS84 latitude/longitude
+     *
+     * @param float $lat decimal latitude (- for southern latitudes)
+     * @param float $lond ecimal logitude (- for western latitudes)
+     *
+     * @return osgb36
+     */
     public static function createFromWGS84($lat, $lon) {
 
         $pos = new osgb36();
@@ -390,23 +483,38 @@ class osgb36 {
         $pos->lat = $lat;
         $pos->lon = $lon;
 
-        $pos->convertWGS84toOSGB36();
+        $pos->_convertWGS84toOSGB36();
         $pos->toGrid();
 
         return $pos;
     }
 
+    /**
+     * Creates a osgb36 object from a Grid Reference
+     *
+     * @param string $grid Grid Reference eg SU 127 277
+     *
+     * @return osgb36
+     */
     public static function createFromGridRef($grid) {
 
         $pos = new osgb36();
 
-        $pos->posFromGrid($grid);
-        $pos->toLatLong();
-        $pos->convertOSGB36toWGS84();
+        $pos->_posFromGrid($grid);
+        $pos->_toLatLong();
+        $pos->_convertOSGB36toWGS84();
 
         return $pos;
     }
 
+    /**
+     *  Creates a osgb36 object from an easting and northing
+     *
+     * @param float $east easting in m
+     * @param float $north northing in m
+     *
+     * @return osgb36
+     */
     public static function createFromEastNorth($east, $north) {
 
         $pos = new osgb36();
@@ -414,12 +522,24 @@ class osgb36 {
         $pos->north = $north;
         $pos->east = $east;
 
-        $pos->toLatLong();
-        $pos->convertOSGB36toWGS84();
+        $pos->_toLatLong();
+        $pos->_convertOSGB36toWGS84();
 
         return $pos;
     }
 
+    /**
+     * formats a decimal latitude/longitude to a display string
+     *
+     * @param float  $dec    decimal lat or long
+     * @param string $format format D - decimal ($digits is the number of decimal places)
+     *                              DM - decimal minutes 50°54.01'N, -2°35.97'W ($digits is the number of decimal places of mins)
+     *                              DMS - decimal minutes seconds 050°54'00" N, 001°24'02" W ($digits is the number of leading zeros of whole degrees)
+     * @param string $which   lat or long (used for N/S/E/W)
+     * @param int $digits     number of digits (see above)
+     *
+     * @return string
+     */
     public static function formatDMS($dec, $format,$which, $digits = 0){
 
         $dir['lat']['+'] = "N";
@@ -429,7 +549,7 @@ class osgb36 {
 
         switch($format){
             case "D":
-                $ret = $dec;
+                $ret = round($dec, $digits);
                 break;
             case "DMS":
                 $de = abs($dec);
@@ -458,10 +578,25 @@ class osgb36 {
         return $ret;
     }
 
+    /**
+     * formats current WGS84 position as a displayed string
+     *
+     * @param string $format format D - decimal ($digits is the number of decimal places)
+     *                              DM - decimal minutes 50°54.01'N, -2°35.97'W ($digits is the number of decimal places of mins)
+     *                              DMS - decimal minutes seconds 050°54'00" N, 001°24'02" W ($digits is the number of leading zeros of whole degrees)
+     * @param int $digits    number of digits (see above)
+     * @param string $join   the string used to join the lat/long
+     *
+     * @return string
+     */
     public function asDMS($format, $digits = 0, $join = ', ') {
         return self::formatDMS($this->lat, $format, 'lat', $digits).$join.self::formatDMS($this->lon, $format, 'long', $digits);
     }
 
+    /**
+     * Is the current position in GB
+     * @return bool
+     */
     public function isInGB() {
         if($this->east < 0 || $this->east > 700000 || $this->north < 0 || $this->north > 1300000) {
             return false;
@@ -469,7 +604,18 @@ class osgb36 {
         return $this->_pointInPolygon($this->east, $this->north, $this->gb) === 'inside';
     }
 
+    /**
+     * Checks the current position is on a map and returns info about the maps.
+     *
+     * @param string $map_type Map type you are looking for, eg explorer, landranger or historic
+     *
+     * @return array
+     */
     public function hasAMap($map_type) {
+
+        if (isset($this->osmaps[$map_type]) === false) {
+            throw new \RuntimeException('$map_type not found.');
+        }
 
         $url = $this->osmaps[$map_type];
         $cache_file = $this->cache.'/'.$map_type.'.json';
@@ -518,17 +664,24 @@ class osgb36 {
 
     }
 
-    protected $_pointOnVertex = true; // Check if the point sits exactly on one of the vertices?
+    /**
+     * looks where a point is in relation to a polygon
+     *
+     * @param float $east
+     * @param float $north
+     * @param array $polygon array of ponts
+     *
+     * @return string - where the point is 'vertex', 'boundary', 'inside', 'outside'
+     */
+    protected function _pointInPolygon($east, $north, $polygon) {
 
-    function _pointInPolygon($east, $north, $polygon, $pointOnVertex = true) {
-
-        $point = array(0 => $east, 1 => $north);
-
-        $this->_pointOnVertex = $pointOnVertex;
+        $point = array($east, $north);
 
         // Check if the point sits exactly on a vertex
-        if ($this->_pointOnVertex == true and $this->_pointOnVertex($point, $polygon) == true) {
-            return "vertex";
+        foreach($polygon as $vertex) {
+            if ($point == $vertex) {
+                return "vertex";
+            }
         }
 
         // Check if the point is inside the polygon or on the boundary
@@ -557,15 +710,6 @@ class osgb36 {
         } else {
             return "outside";
         }
-    }
-
-    function _pointOnVertex($point, $vertices) {
-        foreach($vertices as $vertex) {
-            if ($point == $vertex) {
-                return true;
-            }
-        }
-        return false;
     }
 
 
