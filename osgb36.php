@@ -712,5 +712,25 @@ class osgb36 {
         }
     }
 
+    /**
+     * Calculates the distance between two points
+     *
+     * @author Andy Milsted
+     *
+     * @param $lat
+     * @param $lon
+     *
+     * @return float - distance in km
+     */
+    public function distanceFromWGS84($lat, $lon) {
+
+        $theta = $this->lon - $lon;
+        $dist = sin(deg2rad($this->lat)) * sin(deg2rad($lat)) +  cos(deg2rad($this->lat)) * cos(deg2rad($lat)) * cos(deg2rad($theta));
+        $dist = acos($dist);
+        $dist = rad2deg($dist);
+        return $dist * 60  *  1.853;
+
+    }
+
 
 }
