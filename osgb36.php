@@ -181,8 +181,8 @@ class osgb36 {
      * @var array
      */
     protected $osmaps = array(
-        'explorer' => 'https://api.ordnancesurvey.co.uk/osl/v1/mapsheet/explorer?bbox=0,0,700000,1300000,27700&tsrs=27700',
-        'landranger' => 'https://api.ordnancesurvey.co.uk/osl/v1/mapsheet/landranger?bbox=0,0,700000,1300000,27700&tsrs=27700',
+        'explorer' => 'https://www.ordnancesurvey.co.uk/shop/basket-clickable-map/assets/explorerreshape.json',
+        'landranger' => 'https://www.ordnancesurvey.co.uk/shop/basket-clickable-map/assets/landrangerreshape.json',
         'historic1896' => 'https://www.ordnancesurvey.co.uk/shop/clickable-map/assets/historic1896.json'
     );
 
