@@ -385,16 +385,16 @@ class osgb36
         // normalise to 1m grid, rounding up to centre of grid square:
         switch (strlen($gridref)) {
             case 4:
-                $e += '500';
-                $n += '500';
+                $e += 500;
+                $n += 500;
                 break;
             case 6:
-                $e += '50';
-                $n += '50';
+                $e += 50;
+                $n += 50;
                 break;
             case 8:
-                $e += '5';
-                $n += '5';
+                $e += 5;
+                $n += 5;
                 break;
             // 10-digit refs are already 1m
         }
