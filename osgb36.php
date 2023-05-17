@@ -190,7 +190,7 @@ class osgb36
     /**
      * Will convert the current OSGB36 lat/long into easting/northings in m
      */
-    public function toGrid()
+    public function toGrid(): void
     {
         $lat = deg2rad($this->os_lat);
         $lon = deg2rad($this->os_lon);
@@ -210,7 +210,7 @@ class osgb36
         $cosLat = cos($lat);
         $sinLat = sin($lat);
         $nu = $a * $F0 / sqrt(1 - $e2 * $sinLat * $sinLat);              // transverse radius of curvature
-        $rho = $a * $F0 * (1 - $e2) / pow(1 - $e2 * $sinLat * $sinLat, 1.5);  // meridional radius of curvature
+        $rho = $a * $F0 * (1 - $e2) / ((1 - $e2 * $sinLat * $sinLat) ** 1.5);  // meridional radius of curvature
         $eta2 = $nu / $rho - 1;
 
         $Ma = (1 + $n + (5 / 4) * $n2 + (5 / 4) * $n3) * ($lat - $lat0);
@@ -246,7 +246,7 @@ class osgb36
     /**
      * Converts the current OSGB36 position into WGS84
      */
-    protected function _convertOSGB36toWGS84()
+    protected function _convertOSGB36toWGS84(): void
     {
         $p1 = ['lat' => $this->os_lat, 'lon' => $this->os_lon, 'height' => $this->os_height];
         $p2 = $this->_convert($p1, $this->e['Airy1830'], $this->h['OSGB36toWGS84'], $this->e['WGS84']);
@@ -258,7 +258,7 @@ class osgb36
     /**
      * Converts the current WGS84 position into OSGB36
      */
-    protected function _convertWGS84toOSGB36()
+    protected function _convertWGS84toOSGB36(): void
     {
         $p1 = ['lat' => $this->lat, 'lon' => $this->lon, 'height' => (float)$this->height];
         $p2 = $this->_convert($p1, $this->e['WGS84'], $this->h['WGS84toOSGB36'], $this->e['Airy1830']);
@@ -277,7 +277,7 @@ class osgb36
      *
      * @return array as lat, lon, height
      */
-    protected function _convert($p, $e1, $t, $e2)
+    protected function _convert($p, $e1, $t, $e2): array
     {
         // -- convert polar to cartesian coordinates (using ellipse 1)
 
@@ -341,7 +341,7 @@ class osgb36
      *
      * @param string $gridref
      */
-    protected function _posFromGrid($gridref)
+    protected function _posFromGrid($gridref): void
     {
         // get numeric values of letter references, mapping A->0, B->1, C->2, etc:
         $l1 = ord(strtoupper($gridref[0])) - ord('A');
@@ -406,7 +406,7 @@ class osgb36
     /**
      * convert OS grid reference to geodesic co-ordinates
      */
-    protected function _toLatLong()
+    protected function _toLatLong(): void
     {
         $E = $this->east;
         $N = $this->north;
@@ -439,7 +439,7 @@ class osgb36
         $cosLat = cos($lat);
         $sinLat = sin($lat);
         $nu = $a * $F0 / sqrt(1 - $e2 * $sinLat * $sinLat);              // transverse radius of curvature
-        $rho = $a * $F0 * (1 - $e2) / pow(1 - $e2 * $sinLat * $sinLat, 1.5);  // meridional radius of curvature
+        $rho = $a * $F0 * (1 - $e2) / ((1 - $e2 * $sinLat * $sinLat) ** 1.5);  // meridional radius of curvature
         $eta2 = $nu / $rho - 1;
 
         $tanLat = tan($lat);
@@ -494,8 +494,8 @@ class osgb36
         }
 
         // translate those into numeric equivalents of the grid letters
-        $l1 = (19 - $n100k) - (19 - $n100k) % 5 + floor(($e100k + 10) / 5);
-        $l2 = (19 - $n100k) * 5 % 25 + $e100k % 5;
+        $l1 = (19 - $n100k) - (int)(19 - $n100k) % 5 + floor(($e100k + 10) / 5);
+        $l2 = (int)((19 - $n100k) * 5) % 25 + $e100k % 5;
 
         // compensate for skipped 'I' and build grid letter-pairs
         if ($l1 > 7) {
@@ -510,8 +510,8 @@ class osgb36
             return $letPair;
         }
         // strip 100km-grid indices from easting & northing, and reduce precision
-        $e = floor(($e % 100000) / pow(10, 5 - $digits / 2));
-        $n = floor(($n % 100000) / pow(10, 5 - $digits / 2));
+        $e = floor((((int)$e) % 100000) / (10 ** (5 - $digits / 2)));
+        $n = floor((((int)$n) % 100000) / (10 ** (5 - $digits / 2)));
         // note use of floor, as ref is bottom-left of relevant square!
         $d = $digits / 2;
 
@@ -528,7 +528,7 @@ class osgb36
      *
      * @return osgb36
      */
-    public static function createFromWGS84($lat, $lon)
+    public static function createFromWGS84($lat, $lon): osgb36
     {
         $pos = new static();
 
@@ -548,7 +548,7 @@ class osgb36
      *
      * @return osgb36
      */
-    public static function createFromGridRef($grid)
+    public static function createFromGridRef($grid): osgb36
     {
         $pos = new static();
 
@@ -567,7 +567,7 @@ class osgb36
      *
      * @return osgb36
      */
-    public static function createFromEastNorth($east, $north)
+    public static function createFromEastNorth($east, $north): osgb36
     {
         $pos = new static();
 
@@ -592,7 +592,7 @@ class osgb36
      *
      * @return string
      */
-    public static function formatDMS($dec, $format, $which, $digits = 0)
+    public static function formatDMS($dec, $format, $which, $digits = 0): string
     {
         $dir['lat']['+'] = 'N';
         $dir['lat']['-'] = 'S';
@@ -643,7 +643,7 @@ class osgb36
      *
      * @return string
      */
-    public function asDMS($format, $digits = 0, $join = ', ')
+    public function asDMS($format, $digits = 0, $join = ', '): string
     {
         return self::formatDMS($this->lat, $format, 'lat', $digits) . $join . self::formatDMS($this->lon, $format, 'long', $digits);
     }
@@ -652,7 +652,7 @@ class osgb36
      * Is the current position in GB
      * @return bool
      */
-    public function isInGB()
+    public function isInGB(): bool
     {
         if ($this->east < 0 || $this->east > 700000 || $this->north < 0 || $this->north > 1300000) {
             return false;
@@ -665,7 +665,7 @@ class osgb36
      *
      * @param string $map_type Map type you are looking for, eg explorer, landranger or historic
      *
-     * @return array
+     * @return array|false
      */
     public function hasAMap($map_type)
     {
@@ -676,8 +676,8 @@ class osgb36
         $url = $this->osmaps[$map_type];
         $cache_file = $this->cache . '/' . $map_type . '.json';
         if (file_exists($cache_file) === false || filemtime($cache_file) < (time() - $this->cache_time)) {
-            if (file_exists($this->cache) === false) {
-                mkdir($this->cache, 0777, true);
+            if ((file_exists($this->cache) === false) && !mkdir($concurrentDirectory = $this->cache, 0777, true) && !is_dir($concurrentDirectory)) {
+                throw new \RuntimeException(sprintf('Directory "%s" was not created', $concurrentDirectory));
             }
             copy($url, $cache_file);
         }
@@ -695,7 +695,7 @@ class osgb36
                     ];
                     $distance = round(
                         sqrt(
-                            pow($center[0] - $this->east, 2) + pow($center[1] - $this->north, 2)
+                            (($center[0] - $this->east) ** 2) + (($center[1] - $this->north) ** 2)
                         )
                     );
                     if ($distance_from_center > $distance) {
@@ -718,6 +718,8 @@ class osgb36
                     : sprintf('https://www.ordnancesurvey.co.uk/shop/clickable-map//assets/%s-front-cover/%03d.jpg', $map_type, $found['NUMBER'])
             ];
         }
+
+        return false;
     }
 
     /**
@@ -729,7 +731,7 @@ class osgb36
      *
      * @return string - where the point is 'vertex', 'boundary', 'inside', 'outside'
      */
-    protected function _pointInPolygon($east, $north, $polygon)
+    protected function _pointInPolygon($east, $north, $polygon): string
     {
         $point = [$east, $north];
 
@@ -764,11 +766,11 @@ class osgb36
             }
         }
         // If the number of edges we passed through is odd, then it's in the polygon.
-        if ($intersections % 2 !== 0) {
+        if (((int)$intersections) % 2 !== 0) {
             return 'inside';
-        } else {
-            return 'outside';
         }
+
+        return 'outside';
     }
 
     /**
@@ -781,7 +783,7 @@ class osgb36
      * @author Andy Milsted
      *
      */
-    public function distanceFromWGS84($lat, $lon)
+    public function distanceFromWGS84($lat, $lon): float
     {
         $theta = $this->lon - $lon;
         $dist = sin(deg2rad($this->lat)) * sin(deg2rad($lat)) + cos(deg2rad($this->lat)) * cos(deg2rad($lat)) * cos(deg2rad($theta));
